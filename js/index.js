@@ -1,33 +1,23 @@
     var URL = window.URL || window.webkitURL || window.mozURL || window.msURL;
     navigator.saveBlob = navigator.saveBlob || navigator.msSaveBlob || navigator.mozSaveBlob || navigator.webkitSaveBlob;
     window.saveAs = window.saveAs || window.webkitSaveAs || window.mozSaveAs || window.msSaveAs;
-
-    // Because highlight.js is a bit awkward at times
-    var languageOverrides = {
-      js: 'javascript',
-      html: 'xml'
-    };
+	
+	if (typeof String.prototype.startsWith != 'function') {
+	  String.prototype.startsWith = function (prefix){
+		return this.slice(0, prefix.length) === prefix;
+	  };
+	}
+	if (typeof String.prototype.endsWith != 'function') {
+	  String.prototype.endsWith = function(suffix) {
+		return this.indexOf(suffix, this.length - suffix.length) !== -1;
+	  };
+	}
 
     var md = markdownit({
-      html: true,
-      highlight: function(code, lang){
-        if(languageOverrides[lang]) lang = languageOverrides[lang];
-        if(lang && hljs.getLanguage(lang)){
-          try {
-            return hljs.highlight(lang, code).value;
-          }catch(e){}
-        }
-        return '';
-      }
+      html: true
     })
       .use(markdownitFootnote);
 
-
-    var hashto;
-
-    function update(e){
-      setOutput(e.getValue());
-    }
 
     function setOutput(val){
       val = val.replace(/<equation>((.*?\n)*?.*?)<\/equation>/ig, function(a, b){
@@ -51,31 +41,6 @@
         }
       }
     }
-
-    var editor = CodeMirror.fromTextArea(document.getElementById('code'), {
-      mode: 'gfm',
-      lineNumbers: false,
-      matchBrackets: true,
-      lineWrapping: true,
-      theme: 'base16-light',
-      extraKeys: {"Enter": "newlineAndIndentContinueMarkdownList"}
-    });
-
-    //editor.on('change', update);
-
-
-
-    document.addEventListener('drop', function(e){
-      e.preventDefault();
-      e.stopPropagation();
-
-      var reader = new FileReader();
-      reader.onload = function(e){
-        editor.setValue(e.target.result);
-      };
-
-      reader.readAsText(e.dataTransfer.files[0]);
-    }, false);
 
 
 
@@ -148,3 +113,236 @@
         return false;
       }
     });
+	
+	$(document).on('focus', '[contenteditable]', function() {
+		var $this = $(this);
+		$this.data('before', $this.html());
+		return $this;
+	}).on('blur keyup paste input', '[contenteditable]', function() {
+		var $this = $(this);
+		if ($this.data('before') !== $this.html()) {
+			$this.data('before', $this.html());
+			$this.trigger('change');
+		}
+		return $this;
+	});
+	
+	var flagEdit = false;
+	$("#out").change(function(e) {
+		if(flagEdit){
+			flagEdit = false;
+			return;
+		}
+		var parentElem =  $(getCaretParentElementWithin(this));
+		var mdItem = MarkDownItem.newInstance(parentElem);
+		if($(mdItem.rootElem).hasClass("title"))
+			return;
+		flagEdit = mdItem.checkMarkDown();
+		
+		var content = parentElem.html();
+		var reg = / \/$/;
+		if(reg.exec(content)){
+			console.log("matched");
+			$(".CommandMenu").show();
+		}
+    });
+	
+
+    $("#out").on('keydown', function(e){
+	  //13:Enter, 8:Backspace, 127:DEL
+		switch(e.keyCode){
+			case 13:
+				var parentElem =  $(getCaretParentElementWithin(this));
+				var mdItem = MarkDownItem.newInstance(parentElem[0]);
+				flagEdit = true;
+				if(parentElem[0].tagName == "LI"){
+					e.preventDefault();
+					var liArr = $(parentElem).parent().find("li");
+					if(liArr.index(parentElem)==liArr.size()-1&&(parentElem.html()==""||parentElem.html()=="<br>")){
+						parentElem.remove();
+						mdItem.insertNewAfter();
+					} else{
+						mdItem.insertNewLi();
+					}
+				}else if(parentElem[0].tagName == "P"&&parentElem.parent("blockquote").size()>0){
+					e.preventDefault();
+					var blockquote = parentElem.parent("blockquote");
+					if(parentElem.html()==""||parentElem.html()=="<br>"){
+						mdItem.insertNewAfter();
+						mdItem.rootElem.remove();
+					}else{
+						mdItem.insertNewBlockquote();
+					}
+				}else{
+					e.preventDefault();
+					mdItem.insertNewAfter();
+				}
+				break;
+			case 8:
+				var parentElem =  $(getCaretParentElementWithin(this));
+				if(parentElem.parents(".title").size()>0){
+					if(parentElem.html()==""||parentElem.html()=="<br>"){
+						e.preventDefault();
+					}
+				}else{
+					var mdItem = MarkDownItem.newInstance(parentElem);
+					flagEdit = true;
+					var tagName = parentElem[0].tagName;
+					if(tagName != "P"){
+						if(parentElem.html()==""||parentElem.html()=="<br>"){
+							if(tagName == "LI"){
+								var liArr = $(parentElem).parent().find("li");
+								if(liArr.size()==1){
+									e.preventDefault();
+									var newItem = $("<p><br></p>");
+									$(mdItem.rootElem).html(newItem);
+									setRangeWithin(newItem[0], 0);
+								}
+							}else{
+								e.preventDefault();
+								var newItem = $("<p><br></p>");
+								$(mdItem.rootElem).html(newItem);
+								setRangeWithin(newItem[0], 0);
+							}
+						}
+					}
+				}
+				break
+			case 127:
+				break
+		}
+    });
+	
+	$(".title>h1").change(function(e) {
+        if($(this).html()==""||$(this).html()=="<br>"){
+			$(".title>.placeholder").show();
+		}else{
+			$(".title>.placeholder").hide();
+		}
+    });
+	
+	var MarkDownItem = {
+		newInstance: function(parentElem){
+			var mdItem = {};
+			mdItem.parentElem = parentElem;
+			mdItem.rootElem = $(parentElem).parents(".markdown-item")[0];
+			mdItem.checkMarkDown = function(){
+				var value = $(this.parentElem).html();
+				value = $('<div>').html(value).text();
+				var reg = /^([#|*|>]+|\d+\.) /;
+				if(reg.exec(value)){
+					$(this.rootElem).html(md.render(value));
+					var child = $(this.rootElem).children("p,h1,h2,h3,h4,h5,h6")[0] || $(this.rootElem).find("ul>li,ol>li,blockquote>p")[0];
+					if(child && child.innerHTML==""){
+						child.innerHTML = "<br>";
+					}else if($(this.rootElem).find("blockquote") && $(this.rootElem).find("blockquote").html()==""){
+						child = $("<p><br></p>");
+						child.appendTo($(this.rootElem).find("blockquote"));
+						child = child[0];
+					}
+					setRangeWithin(child, 0);
+					return true;
+				}
+				return false;
+			};
+			mdItem.insertNewAfter = function(){
+				var offset = getCaretOffsetWithin(this.parentElem);
+				var content = $(this.parentElem).html();
+				var lastCon = content.substring(0, offset);
+				var nextCon = content.substr(offset);
+				lastCon = (lastCon=="")?"<br>":lastCon;
+				nextCon = (nextCon=="")?"<br>":nextCon;
+				$(this.parentElem).html(lastCon);
+				var newMDitem = $("<div class=\"markdown-item\"><p>"+nextCon+"</p></div>");
+				newMDitem.insertAfter(this.rootElem);
+				var child = newMDitem.children("p")[0];
+				setRangeWithin(child, 0);
+				return MarkDownItem.newInstance(child);
+			};
+			mdItem.insertNewLi = function(){
+				var offset = getCaretOffsetWithin(this.parentElem);
+				var content = $(this.parentElem).html();
+				var lastCon = content.substring(0, offset);
+				var nextCon = content.substr(offset);
+				lastCon = (lastCon=="")?"<br>":lastCon;
+				nextCon = (nextCon=="")?"<br>":nextCon;
+				$(this.parentElem).html(lastCon);
+				var parentElem = $("<li>"+nextCon+"</li>");
+				parentElem.insertAfter(this.parentElem);
+				setRangeWithin(parentElem[0], 0);
+			};
+			mdItem.insertNewBlockquote = function(){
+				var offset = getCaretOffsetWithin(this.parentElem);
+				var content = $(this.parentElem).html();
+				var lastCon = content.substring(0, offset);
+				var nextCon = content.substr(offset);
+				lastCon = (lastCon=="")?"<br>":lastCon;
+				nextCon = (nextCon=="")?"<br>":nextCon;
+				$(this.parentElem).html(lastCon);
+				var newMDitem = $("<div class=\"markdown-item\"><blockquote><p>"+nextCon+"</p></blockquote></div>");
+				newMDitem.insertAfter(this.rootElem);
+				var child = newMDitem.find("p")[0];
+				setRangeWithin(child, 0);
+			};
+			return mdItem;
+		}
+	};
+	
+	
+	function setRangeWithin(node, offset) {
+		node.focus();
+		var textNode = node.firstChild;
+		var caret = offset; 
+		var range = document.createRange();
+		range.setStart(textNode, caret);
+		range.setEnd(textNode, caret);
+		var sel = window.getSelection();
+		sel.removeAllRanges();
+		sel.addRange(range);
+		return range;
+	}
+	
+	function getCaretOffsetWithin(element) {
+		var caretOffset = 0;
+		var doc = element.ownerDocument || element.document;
+		var win = doc.defaultView || doc.parentWindow;
+		var sel;
+		if (typeof win.getSelection != "undefined") {
+			sel = win.getSelection();
+			if (sel.rangeCount > 0) {
+				var range = win.getSelection().getRangeAt(0);
+				var preCaretRange = range.cloneRange();
+				preCaretRange.selectNodeContents(element);
+				preCaretRange.setEnd(range.endContainer, range.endOffset);
+				caretOffset = preCaretRange.toString().length;
+			}
+		} else if ( (sel = doc.selection) && sel.type != "Control") {
+			var textRange = sel.createRange();
+			var preCaretTextRange = doc.body.createTextRange();
+			preCaretTextRange.moveToElementText(element);
+			preCaretTextRange.setEndPoint("EndToEnd", textRange);
+			caretOffset = preCaretTextRange.text.length;
+		}
+		return caretOffset;
+	}
+	
+	function getCaretParentElementWithin(element) {
+		var parentElement;
+		var doc = element.ownerDocument || element.document;
+		var win = doc.defaultView || doc.parentWindow;
+		var sel;
+		if (typeof win.getSelection != "undefined") {
+			sel = win.getSelection();
+			if (sel.rangeCount > 0) {
+				var range = win.getSelection().getRangeAt(0);
+				if(range.startContainer.toString()=="[object Text]")
+					parentElement = range.startContainer.parentElement;
+				else
+					parentElement = range.startContainer;
+			}
+		} else if ( (sel = doc.selection) && sel.type != "Control") {
+			var textRange = sel.createRange();
+			parentElement = range.parentElement();
+		}
+		return parentElement;
+	}

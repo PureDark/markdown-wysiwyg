@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Markdown Editor</title>
+  <meta charset="utf-8" />
   <script src="js/markdown-it.js"></script>
   <script src="js/markdown-it-footnote.js"></script>
   <script src="js/jquery-1.9.1.min.js"></script>
@@ -10,15 +11,69 @@
   <link rel="stylesheet" href="css/index.css">
 </head>
 <body>
-  <div id="in"><form><textarea id="code">
-</textarea></form></div>
-  <div id="out" contenteditable="true">
-  <div>
-  <span data-offset-key="29gkj-0-0" style="font-style: normal; font-weight: normal;">
-  <span data-text="true">dd</span>
-  </span>
-  </div>
+  <div id="out" contenteditable="plaintext-only">
+  	<div class="title" contenteditable="false">
+        <h1 contenteditable="plaintext-only"><br></h1>
+        <h1 contenteditable="false" class="placeholder">标题（可选）</h1>
+    </div>
+    
+  	<div class="markdown-item">
+        <p>aabb</p>
+    </div>
+    
+  	<div class="markdown-item">
+        <ol>
+        	<li>aaa</li>
+        </ol>
+    </div>
   
+  </div>
+  <div class="CommandMenu" role="listbox" style="left: 640px; top: 322.5px; opacity: 1; visibility: hidden;">
+   <div class="CommandEntry" role="option">
+    <span class="CommandEntry-visual"><span class="HeadingOneCommandIcon"></span></span>
+    <span class="CommandEntry-text">H1</span>
+    <span class="CommandEntry-shortcut">h1</span>
+   </div>
+   <div class="CommandEntry" role="option">
+    <span class="CommandEntry-visual"><span class="HeadingTwoCommandIcon"></span></span>
+    <span class="CommandEntry-text">H2</span>
+    <span class="CommandEntry-shortcut">h2</span>
+   </div>
+   <div class="CommandEntry" role="option">
+    <span class="CommandEntry-visual"><span class="HeadingThreeCommandIcon"></span></span>
+    <span class="CommandEntry-text">H3</span>
+    <span class="CommandEntry-shortcut">h3</span>
+   </div>
+   <div class="CommandEntry CommandEntry--focused" role="option">
+    <span class="CommandEntry-visual"><span class="BlockQuoteCommandIcon"></span></span>
+    <span class="CommandEntry-text">引用</span>
+    <span class="CommandEntry-shortcut">blockquote</span>
+   </div>
+   <div class="CommandEntry" role="option">
+    <span class="CommandEntry-visual"><span class="BulletedListCommandIcon"></span></span>
+    <span class="CommandEntry-text">无序列表</span>
+    <span class="CommandEntry-shortcut">ul</span>
+   </div>
+   <div class="CommandEntry" role="option">
+    <span class="CommandEntry-visual"><span class="NumberedListCommandIcon"></span></span>
+    <span class="CommandEntry-text">有序列表</span>
+    <span class="CommandEntry-shortcut">ol</span>
+   </div>
+   <div class="CommandEntry" role="option">
+    <span class="CommandEntry-visual"><span class="CodeEditorCommandIcon"></span></span>
+    <span class="CommandEntry-text">代码</span>
+    <span class="CommandEntry-shortcut">code</span>
+   </div>
+   <div class="CommandEntry" role="option">
+    <span class="CommandEntry-visual"><span class="LinkCommandIcon"></span></span>
+    <span class="CommandEntry-text">链接</span>
+    <span class="CommandEntry-shortcut">link</span>
+   </div>
+   <div class="CommandEntry" role="option">
+    <span class="CommandEntry-visual"><span class="ImageCommandIcon"></span></span>
+    <span class="CommandEntry-text">图片</span>
+    <span class="CommandEntry-shortcut">image</span>
+   </div>
   </div>
   <div id="menu">
     <span>Save As</span>
