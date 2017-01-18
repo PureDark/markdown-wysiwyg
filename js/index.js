@@ -79,8 +79,6 @@
       }
     }
 
-
-
     var menuVisible = false;
     var menu = document.getElementById('menu');
 
@@ -114,6 +112,10 @@
       }
     });
 	
+	
+	var flagEdit = false;
+	var flagMenuOpen = false;
+	
 	$(document).on('focus', '[contenteditable]', function() {
 		var $this = $(this);
 		$this.data('before', $this.html());
@@ -127,8 +129,39 @@
 		return $this;
 	});
 	
-	var flagEdit = false;
+	$(".CommandEntry").hover(function(e) {
+		var $options = $(".CommandMenu>.CommandEntry");
+		var pos = $options.index(this);
+		selectMenuOption(pos);
+    });
+	
+	document.onselectionchange = function() {
+		var parentElem =  $(getCaretParentElementWithin($("#out")[0]));
+		var content = parentElem.html();
+		var offset = getCaretOffsetWithin(parentElem[0]);
+		var lastCon = content.substring(offset-2, offset);
+		var reg = / \/$/;
+		if(reg.exec(lastCon)){
+			var $cm = $(".CommandMenu");
+			$cm.show();
+			var coor = getSelectionCoords();
+			$cm.css("left", coor.x);
+			$cm.css("top", coor.y+parentElem.height());
+			flagMenuOpen = true;
+		}else{
+			$(".CommandMenu").hide();
+			flagMenuOpen = false;
+		}
+	};
+	
 	$("#out").change(function(e) {
+		var $title = $(".title>h1");
+		var $placeholder = $(".title>.placeholder");
+        if( $title.html()==""|| $title.html()=="<br>"){
+			$placeholder.show();
+		}else{
+			$placeholder.hide();
+		}
 		if(flagEdit){
 			flagEdit = false;
 			return;
@@ -138,18 +171,11 @@
 		if($(mdItem.rootElem).hasClass("title"))
 			return;
 		flagEdit = mdItem.checkMarkDown();
-		
-		var content = parentElem.html();
-		var reg = / \/$/;
-		if(reg.exec(content)){
-			console.log("matched");
-			$(".CommandMenu").show();
-		}
     });
 	
 
     $("#out").on('keydown', function(e){
-	  //13:Enter, 8:Backspace, 127:DEL
+	  //13:Enter, 8:Backspace, 127:Delete
 		switch(e.keyCode){
 			case 13:
 				var parentElem =  $(getCaretParentElementWithin(this));
@@ -208,18 +234,43 @@
 					}
 				}
 				break
-			case 127:
-				break
+				case 127:
+					break
+				case 38: //上
+					if(flagMenuOpen){
+						e.preventDefault();
+						MoveMenuSelection(-1);
+					}
+					break;
+				case 40: //下
+					if(flagMenuOpen){
+						e.preventDefault();
+						MoveMenuSelection(1);
+					}
+					break;
 		}
     });
 	
-	$(".title>h1").change(function(e) {
-        if($(this).html()==""||$(this).html()=="<br>"){
-			$(".title>.placeholder").show();
-		}else{
-			$(".title>.placeholder").hide();
-		}
-    });
+	function selectMenuOption(pos){
+		var $options = $(".CommandMenu>.CommandEntry");
+		var $selected = $(".CommandMenu>.CommandEntry--focused");
+		$selected.removeClass("CommandEntry--focused");
+		$options.eq(pos).addClass("CommandEntry--focused");
+	}
+	
+	function MoveMenuSelection(offset){
+		var $options = $(".CommandMenu>.CommandEntry");
+		var $selected = $(".CommandMenu>.CommandEntry--focused");
+		var size = $options.size();
+		var selectedPos = $options.index($selected);
+		if(selectedPos+offset>size-1)
+			selectedPos = selectedPos+offset-size;
+		else if(selectedPos+offset<0)
+			selectedPos = selectedPos+offset+size;
+		else 
+			selectedPos += offset;
+		selectMenuOption(selectedPos);
+	}
 	
 	var MarkDownItem = {
 		newInstance: function(parentElem){
@@ -345,4 +396,52 @@
 			parentElement = range.parentElement();
 		}
 		return parentElement;
+	}
+	
+	function getSelectionCoords(win) {
+		win = win || window;
+		var doc = win.document;
+		var sel = doc.selection, range, rects, rect;
+		var x = 0, y = 0;
+		if (sel) {
+			if (sel.type != "Control") {
+				range = sel.createRange();
+				range.collapse(true);
+				x = range.boundingLeft;
+				y = range.boundingTop;
+			}
+		} else if (win.getSelection) {
+			sel = win.getSelection();
+			if (sel.rangeCount) {
+				range = sel.getRangeAt(0).cloneRange();
+				if (range.getClientRects) {
+					range.collapse(true);
+					rects = range.getClientRects();
+					if (rects.length > 0) {
+						rect = rects[0];
+					}
+					x = rect.left;
+					y = rect.top;
+				}
+				// Fall back to inserting a temporary element
+				if (x == 0 && y == 0) {
+					var span = doc.createElement("span");
+					if (span.getClientRects) {
+						// Ensure span has dimensions and position by
+						// adding a zero-width space character
+						span.appendChild( doc.createTextNode("\u200b") );
+						range.insertNode(span);
+						rect = span.getClientRects()[0];
+						x = rect.left;
+						y = rect.top;
+						var spanParent = span.parentNode;
+						spanParent.removeChild(span);
+	
+						// Glue any broken text nodes back together
+						spanParent.normalize();
+					}
+				}
+			}
+		}
+		return { x: x, y: y };
 	}
