@@ -210,7 +210,7 @@
 						var liArr = $(parentElem).parent().find("li");
 						if(liArr.index(parentElem)==liArr.size()-1&&($(parentElem).html()==""||$(parentElem).html()=="<br>")){
 							$(parentElem).remove();
-							mdItem.insertNewAfter(true);
+							mdItem.insertNewAfter(false);
 						} else{
 							mdItem.insertNewLi();
 						}
@@ -301,12 +301,14 @@
 					CommandMenu.OrderedList();
 					break;
 				case 6:
-					CommandMenu.Link();
+					CommandMenu.Code();
 					break;
 				case 7:
-					CommandMenu.InsertImage();
+					CommandMenu.Link();
 					break;
 				case 8:
+					CommandMenu.InsertImage();
+					break;
 			};
 			CommandMenu.selectMenuOption(0);
 		},
@@ -379,6 +381,16 @@
 			var mdItem = MarkDownItem.newInstance(parentElem);
 			var html = $(mdItem.parentElem).html();
 			var prefix = "1.";
+			html = CommandMenu.removeSlash(html);
+			$(mdItem.parentElem).html(prefix+" "+html);
+			mdItem.checkMarkDown(offset);
+		},
+		Code : function(){
+			var parentElem =  getCaretParentElementWithin(editor);
+			var offset = getCaretOffsetWithin(parentElem);
+			var mdItem = MarkDownItem.newInstance(parentElem);
+			var html = $(mdItem.parentElem).html();
+			var prefix = "   ";
 			html = CommandMenu.removeSlash(html);
 			$(mdItem.parentElem).html(prefix+" "+html);
 			mdItem.checkMarkDown(offset);
@@ -565,8 +577,8 @@
 				return $(this.parentElem).html();
 			};
 			mdItem.insertNewAfter = function(breakContent){
-				var lastCon; 
-				var nextCon;
+				var lastCon = ""; 
+				var nextCon = "";
 				if(breakContent){
 					var offset = getCaretOffsetWithin(this.parentElem);
 					var result = breakAtCaret(this.parentElem, offset);
