@@ -12,11 +12,16 @@
 		return this.indexOf(suffix, this.length - suffix.length) !== -1;
 	  };
 	}
+	
 
     var md = markdownit({
-      html: true
+      html: true,
+	  linkify : true
     })
       .use(markdownitFootnote);
+	  
+	var $editor = $("#out");
+	var editor = $editor[0];
 
 
     function setOutput(val){
@@ -115,6 +120,7 @@
 	
 	var flagEdit = false;
 	var flagMenuOpen = false;
+	var flagLinkModalOpen = false;
 	
 	$(document).on('focus', '[contenteditable]', function() {
 		var $this = $(this);
@@ -132,21 +138,23 @@
 	$(".CommandEntry").hover(function(e) {
 		var $options = $(".CommandMenu>.CommandEntry");
 		var pos = $options.index(this);
-		selectMenuOption(pos);
+		CommandMenu.selectMenuOption(pos);
     });
 	
 	document.onselectionchange = function() {
-		var parentElem =  $(getCaretParentElementWithin($("#out")[0]));
-		var content = parentElem.html();
-		var offset = getCaretOffsetWithin(parentElem[0]);
+		var parentElem = getCaretParentElementWithin(editor);
+		if(typeof(parentElem)=="undefined" || $(parentElem).parent(".title").size()>0)
+			return;
+		var content = $(parentElem).html();
+		var offset = getCaretOffsetWithin(parentElem);
 		var lastCon = content.substring(offset-2, offset);
-		var reg = / \/$/;
-		if(reg.exec(lastCon)){
+		var reg = /(^\/$| \/$)/;
+		if(reg.exec(content)){
 			var $cm = $(".CommandMenu");
 			$cm.show();
 			var coor = getSelectionCoords();
 			$cm.css("left", coor.x);
-			$cm.css("top", coor.y+parentElem.height());
+			$cm.css("top", coor.y+$(parentElem).height());
 			flagMenuOpen = true;
 		}else{
 			$(".CommandMenu").hide();
@@ -154,7 +162,17 @@
 		}
 	};
 	
-	$("#out").change(function(e) {
+	$(window).scroll(function(event){
+		if(flagMenuOpen){
+			var parentElem =  $(getCaretParentElementWithin(editor));
+			var $cm = $(".CommandMenu");
+			var coor = getSelectionCoords();
+			$cm.css("left", coor.x);
+			$cm.css("top", coor.y+parentElem.height());
+		}
+    });
+	
+	$editor.change(function(e) {
 		var $title = $(".title>h1");
 		var $placeholder = $(".title>.placeholder");
         if( $title.html()==""|| $title.html()=="<br>"){
@@ -167,41 +185,49 @@
 			return;
 		}
 		var parentElem =  $(getCaretParentElementWithin(this));
-		var mdItem = MarkDownItem.newInstance(parentElem);
+		var offset = getCaretOffsetWithin(parentElem[0]);
+		var mdItem = MarkDownItem.newInstance(parentElem[0]);
 		if($(mdItem.rootElem).hasClass("title"))
 			return;
-		flagEdit = mdItem.checkMarkDown();
+		flagEdit = mdItem.checkMarkDown(offset);
     });
 	
 
-    $("#out").on('keydown', function(e){
+    $editor.on('keydown', function(e){
 	  //13:Enter, 8:Backspace, 127:Delete
 		switch(e.keyCode){
 			case 13:
 				var parentElem =  $(getCaretParentElementWithin(this));
+				if(parentElem[0].tagName=="EM"||parentElem[0].tagName=="STRONG"||parentElem[0].tagName=="I"||parentElem[0].tagName=="B")
+					parentElem = $(parentElem.parents(":not(em,strong,i,b)")[0]);
 				var mdItem = MarkDownItem.newInstance(parentElem[0]);
-				flagEdit = true;
-				if(parentElem[0].tagName == "LI"){
+				if(flagMenuOpen){
 					e.preventDefault();
-					var liArr = $(parentElem).parent().find("li");
-					if(liArr.index(parentElem)==liArr.size()-1&&(parentElem.html()==""||parentElem.html()=="<br>")){
-						parentElem.remove();
-						mdItem.insertNewAfter();
-					} else{
-						mdItem.insertNewLi();
-					}
-				}else if(parentElem[0].tagName == "P"&&parentElem.parent("blockquote").size()>0){
-					e.preventDefault();
-					var blockquote = parentElem.parent("blockquote");
-					if(parentElem.html()==""||parentElem.html()=="<br>"){
-						mdItem.insertNewAfter();
-						mdItem.rootElem.remove();
-					}else{
-						mdItem.insertNewBlockquote();
-					}
+					CommandMenu.action();
 				}else{
-					e.preventDefault();
-					mdItem.insertNewAfter();
+					flagEdit = true;
+					if(parentElem[0].tagName == "LI"){
+						e.preventDefault();
+						var liArr = $(parentElem).parent().find("li");
+						if(liArr.index(parentElem)==liArr.size()-1&&(parentElem.html()==""||parentElem.html()=="<br>")){
+							parentElem.remove();
+							mdItem.insertNewAfter(true);
+						} else{
+							mdItem.insertNewLi();
+						}
+					}else if(parentElem[0].tagName == "P"&&parentElem.parent("blockquote").size()>0){
+						e.preventDefault();
+						var blockquote = parentElem.parent("blockquote");
+						if(parentElem.html()==""||parentElem.html()=="<br>"){
+							mdItem.insertNewAfter(true);
+							mdItem.rootElem.remove();
+						}else{
+							mdItem.insertNewBlockquote();
+						}
+					}else{
+						e.preventDefault();
+						mdItem.insertNewAfter(true);
+					}
 				}
 				break;
 			case 8:
@@ -214,7 +240,7 @@
 					var mdItem = MarkDownItem.newInstance(parentElem);
 					flagEdit = true;
 					var tagName = parentElem[0].tagName;
-					if(tagName != "P"){
+					if(tagName != "P" || parentElem.parent("blockquote").size()>0){
 						if(parentElem.html()==""||parentElem.html()=="<br>"){
 							if(tagName == "LI"){
 								var liArr = $(parentElem).parent().find("li");
@@ -239,37 +265,216 @@
 				case 38: //上
 					if(flagMenuOpen){
 						e.preventDefault();
-						MoveMenuSelection(-1);
+						CommandMenu.MoveMenuSelection(-1);
 					}
 					break;
 				case 40: //下
 					if(flagMenuOpen){
 						e.preventDefault();
-						MoveMenuSelection(1);
+						CommandMenu.MoveMenuSelection(1);
 					}
 					break;
 		}
     });
 	
-	function selectMenuOption(pos){
-		var $options = $(".CommandMenu>.CommandEntry");
-		var $selected = $(".CommandMenu>.CommandEntry--focused");
-		$selected.removeClass("CommandEntry--focused");
-		$options.eq(pos).addClass("CommandEntry--focused");
-	}
-	
-	function MoveMenuSelection(offset){
-		var $options = $(".CommandMenu>.CommandEntry");
-		var $selected = $(".CommandMenu>.CommandEntry--focused");
-		var size = $options.size();
-		var selectedPos = $options.index($selected);
-		if(selectedPos+offset>size-1)
-			selectedPos = selectedPos+offset-size;
-		else if(selectedPos+offset<0)
-			selectedPos = selectedPos+offset+size;
-		else 
-			selectedPos += offset;
-		selectMenuOption(selectedPos);
+	var CommandMenu = {
+		action : function(){
+			var $options = $(".CommandMenu>.CommandEntry");
+			var $selected = $(".CommandMenu>.CommandEntry--focused");
+			var selectedPos = $options.index($selected);
+			switch(selectedPos){
+				case 0:
+					CommandMenu.Heading(1);
+					break;
+				case 1:
+					CommandMenu.Heading(2);
+					break;
+				case 2:
+					CommandMenu.Heading(3);
+					break;
+				case 3:
+					CommandMenu.Blockquote();
+					break;
+				case 4:
+					CommandMenu.UnorderedList();
+					break;
+				case 5:
+					CommandMenu.OrderedList();
+					break;
+				case 6:
+					CommandMenu.Link();
+					break;
+				case 7:
+					CommandMenu.InsertImage();
+					break;
+				case 8:
+			};
+			selectMenuOption(0);
+		},
+		selectMenuOption : function(pos){
+			var $options = $(".CommandMenu>.CommandEntry");
+			var $selected = $(".CommandMenu>.CommandEntry--focused");
+			$selected.removeClass("CommandEntry--focused");
+			$options.eq(pos).addClass("CommandEntry--focused");
+		},
+		MoveMenuSelection : function(offset){
+			var $options = $(".CommandMenu>.CommandEntry");
+			var $selected = $(".CommandMenu>.CommandEntry--focused");
+			var size = $options.size();
+			var selectedPos = $options.index($selected);
+			if(selectedPos+offset>size-1)
+				selectedPos = selectedPos+offset-size;
+			else if(selectedPos+offset<0)
+				selectedPos = selectedPos+offset+size;
+			else 
+				selectedPos += offset;
+			CommandMenu.selectMenuOption(selectedPos);
+		},
+		removeSlash : function(value){
+			var reg = /(?:^\/$| \/$)/;
+			value = value.replace(reg, function(word){
+				if(word.startsWith(" "))
+					return " ";
+				else
+					return "";
+			});
+			return value;
+		},
+		Heading : function(level){
+			var parentElem =  getCaretParentElementWithin(editor);
+			var offset = getCaretOffsetWithin(parentElem);
+			var mdItem = MarkDownItem.newInstance(parentElem);
+			var html = $(mdItem.parentElem).html();
+			var prefix = "";
+			for(var i=0;i<level;i++)
+				prefix+="#";
+			html = CommandMenu.removeSlash(html);
+			if(offset>html.length)
+				offset = html.length;
+			$(mdItem.parentElem).html(prefix+" "+html);
+			mdItem.checkMarkDown(offset);
+		},
+		Blockquote : function(){
+			var parentElem =  getCaretParentElementWithin(editor);
+			var offset = getCaretOffsetWithin(parentElem);
+			var mdItem = MarkDownItem.newInstance(parentElem);
+			var html = $(mdItem.parentElem).html();
+			var prefix = ">";
+			html = CommandMenu.removeSlash(html);
+			$(mdItem.parentElem).html(prefix+" "+html);
+			mdItem.checkMarkDown(offset);
+		},
+		UnorderedList : function(){
+			var parentElem =  getCaretParentElementWithin(editor);
+			var offset = getCaretOffsetWithin(parentElem);
+			var mdItem = MarkDownItem.newInstance(parentElem);
+			var html = $(mdItem.parentElem).html();
+			var prefix = "*";
+			html = CommandMenu.removeSlash(html);
+			$(mdItem.parentElem).html(prefix+" "+html);
+			mdItem.checkMarkDown(offset);
+		},
+		OrderedList : function(){
+			var parentElem =  getCaretParentElementWithin(editor);
+			var offset = getCaretOffsetWithin(parentElem);
+			var mdItem = MarkDownItem.newInstance(parentElem);
+			var html = $(mdItem.parentElem).html();
+			var prefix = "1.";
+			html = CommandMenu.removeSlash(html);
+			$(mdItem.parentElem).html(prefix+" "+html);
+			mdItem.checkMarkDown(offset);
+		},
+		Link : function(){
+			var parentElem = getCaretParentElementWithin(editor);
+			var $linkEditor = $(".EmbedEditor");
+			$linkEditor.show();
+			var coor = getSelectionCoords();
+			$linkEditor.css("left", coor.x);
+			$linkEditor.css("top", coor.y+$(parentElem).height());
+			$linkEditor.children("[name='text']").focus();
+			flagLinkModalOpen = true;
+			var mdItem = MarkDownItem.newInstance(parentElem);
+			var offset = getCaretOffsetWithin(mdItem.parentElem);
+			var oldText = mdItem.getContentAsText();
+			var html = $(mdItem.parentElem).html();
+			html = CommandMenu.removeSlash(html);
+			$(mdItem.parentElem).html(html);
+			var newText = mdItem.getContentAsText();
+			offset += (newText.length-oldText.length);
+			if(offset>newText.length)
+				offset = newText.length;
+			
+			$linkEditor.keydown(function(e){
+				if(e.keyCode===13){
+					e.preventDefault();
+					$linkEditor.children("[type='submit']").click();
+				}
+			});
+			$linkEditor.children("[type='submit']").click(function(e) {
+				$linkEditor.hide();
+				flagLinkModalOpen = false;
+				$(this).unbind('click');
+				$linkEditor.unbind('keydown');
+				
+                var mText = $linkEditor.children("[name='text']").val();
+                var mLink = $linkEditor.children("[name='link']").val();
+				$linkEditor.children("[name='text']").val("");
+				$linkEditor.children("[name='link']").val("");
+				if(!/https?:\/\//.exec(mLink))
+					mLink = "http://"+mLink;
+				var html = '<a href="'+mLink+'">'+mText+'</a>';
+				setRangeWithin(mdItem.parentElem, offset);
+				insertAtCaret(html, false);
+            });
+		},
+		InsertImage : function(){
+			var parentElem = getCaretParentElementWithin(editor);
+			var mdItem = MarkDownItem.newInstance(parentElem);
+			var offset = getCaretOffsetWithin(mdItem.parentElem);
+			var oldText = mdItem.getContentAsText();
+			var html = $(mdItem.parentElem).html();
+			html = CommandMenu.removeSlash(html);
+			$(mdItem.parentElem).html(html);
+			var newText = mdItem.getContentAsText();
+			offset += (newText.length-oldText.length);
+			if(offset>newText.length)
+				offset = newText.length;
+			setRangeWithin(mdItem.parentElem, offset);
+				
+			var $inputFile = $("<input type='file' accept='image/*' style='display:none'/>");
+			$inputFile.appendTo($("body"));
+			$inputFile.change(function(e) {
+				$inputFile.unbind('change');
+				CommandMenu.ImageToBase64($inputFile[0], function(base64){
+					$inputFile.remove();
+					var html = '<img src="'+base64+'" />';
+					setRangeWithin(mdItem.parentElem, offset);
+					insertAtCaret(html, false);
+				});
+            });
+			$inputFile.click();
+		},
+		ImageToBase64 : function(inputFile, callback) {  
+			if (typeof (FileReader) === 'undefined') {  
+				alert("抱歉，你的浏览器不支持 FileReader，不能将图片转换为Base64，请使用现代浏览器操作！");  
+			} else {  
+				try {  
+					/*图片转Base64 核心代码*/  
+					var file = inputFile.files[0];
+					if (!/image\/\w+/.test(file.type)) {  
+						alert("请确保文件为图像类型");  
+						return false;  
+					}  
+					var reader = new FileReader();  
+					reader.onload = function () {  
+						callback(this.result);  
+					}  
+					reader.readAsDataURL(file);  
+				} catch (e) {  
+					alert('图片转Base64出错！' + e.toString())  
+				}  
+			}  
+		} 
 	}
 	
 	var MarkDownItem = {
@@ -277,30 +482,95 @@
 			var mdItem = {};
 			mdItem.parentElem = parentElem;
 			mdItem.rootElem = $(parentElem).parents(".markdown-item")[0];
-			mdItem.checkMarkDown = function(){
-				var value = $(this.parentElem).html();
-				value = $('<div>').html(value).text();
-				var reg = /^([#|*|>]+|\d+\.) /;
-				if(reg.exec(value)){
-					$(this.rootElem).html(md.render(value));
-					var child = $(this.rootElem).children("p,h1,h2,h3,h4,h5,h6")[0] || $(this.rootElem).find("ul>li,ol>li,blockquote>p")[0];
-					if(child && child.innerHTML==""){
-						child.innerHTML = "<br>";
-					}else if($(this.rootElem).find("blockquote") && $(this.rootElem).find("blockquote").html()==""){
-						child = $("<p><br></p>");
-						child.appendTo($(this.rootElem).find("blockquote"));
-						child = child[0];
-					}
-					setRangeWithin(child, 0);
+			mdItem.checkMarkDown = function(caretPos){
+				if(this.matchPrefix()||this.matchTextStyle()){
+					var oldText = this.getContentAsText();
+					var mdItem = this.checkIfChangeLine();
+					var newText = mdItem.getContentAsText();
+					caretPos += (newText.length-oldText.length);
+					if(caretPos>newText.length)
+						caretPos = newText.length;
+					setRangeWithin(mdItem.parentElem, caretPos);
 					return true;
 				}
 				return false;
 			};
-			mdItem.insertNewAfter = function(){
-				var offset = getCaretOffsetWithin(this.parentElem);
-				var content = $(this.parentElem).html();
-				var lastCon = content.substring(0, offset);
-				var nextCon = content.substr(offset);
+			mdItem.getContentAsText = function(){
+				return $('<div>').html($(this.parentElem).html()).text();;
+			};
+			mdItem.getContentAsHtml = function(){
+				return $('<div>').text($(this.parentElem).html()).html();;
+			};
+			mdItem.matchPrefix = function(){
+				var value = $(this.parentElem).html();
+				value = $('<div>').html(value).text();
+				var reg = /(?:^(?:[#|*|>]+|\d+\.|)|!?\[.*?\]\(.*?\)) /;
+				return reg.exec(value);
+			};
+			mdItem.matchTextStyle = function(){
+				var value = $(this.parentElem).html();
+				value = $('<div>').html(value).text();
+				var reg = /(?:^| )(?:(([\*_])\2)[^\*_]+?\1|([\*_])[^\*_]+?\3)/;
+				return reg.exec(value);
+			};
+			mdItem.checkIfChangeLine = function(){
+				var value = $(this.parentElem).html();
+				value = $('<div>').html(value).text();
+				var mdItem = this;
+				var newHtml = md.render(value);
+				if(this.matchPrefix()){
+					if($(this.parentElem)[0].tagName == "LI"){
+						mdItem = this.insertNewAfter(false);
+						$(mdItem.parentElem).html($(this.parentElem).html());
+						var liArr = $(this.parentElem).parent().find("li");
+						if(liArr.size()>1){
+							$(this.parentElem).remove();
+						}else{
+							$(this.rootElem).remove();
+						}
+					}
+					$(mdItem.rootElem).html(newHtml);
+					var child = $(mdItem.rootElem).children("p,h1,h2,h3,h4,h5,h6")[0] || $(mdItem.rootElem).find("ul>li,ol>li,blockquote>p")[0];
+					if(child && child.innerHTML==""){
+						child.innerHTML = "<br>";
+					}else if($(mdItem.rootElem).find("blockquote") && $(mdItem.rootElem).find("blockquote").html()==""){
+						child = $("<p><br></p>");
+						child.appendTo($(mdItem.rootElem).find("blockquote"));
+						child = child[0];
+					}
+					mdItem.parentElem = child;
+				}else if(this.matchTextStyle()){
+					var content = $(newHtml).html();
+					$(this.parentElem).html(content);
+				}
+				return mdItem;
+			};
+			mdItem.checkTextStyle = function(){
+				$(this.parentElem).find("a").each(function(i, elem){
+					var href = $(elem).attr("href");
+					var text = $(elem).html();
+					text = (text!="")?text:href;
+					$(elem).replaceWith("["+text+"]("+href+")");
+				});
+				$(this.parentElem).find("em,i").each(function(i, elem){
+					var text = $(elem).html();
+					$(elem).replaceWith("_"+text+"_");
+				});
+				$(this.parentElem).find("strong,b").each(function(i, elem){
+					var text = $(elem).html();
+					$(elem).replaceWith("**"+text+"**");
+				});
+				return $(this.parentElem).html();
+			};
+			mdItem.insertNewAfter = function(breakContent){
+				var lastCon; 
+				var nextCon;
+				if(breakContent){
+					var offset = getCaretOffsetWithin(this.parentElem);
+					var content = $(this.parentElem).html();
+					lastCon = content.substring(0, offset);
+					nextCon = content.substr(offset);
+				}
 				lastCon = (lastCon=="")?"<br>":lastCon;
 				nextCon = (nextCon=="")?"<br>":nextCon;
 				$(this.parentElem).html(lastCon);
@@ -336,21 +606,103 @@
 				setRangeWithin(child, 0);
 			};
 			return mdItem;
+		},
+		checkTextStyle : function(html){
+			var $tempElem = $("<div>"+html+"</div>");
+			$tempElem.find("a").each(function(i, elem){
+				var href = $(elem).attr("href");
+				var text = $(elem).html();
+				text = (text!="")?text:href;
+				$(elem).replaceWith("["+text+"]("+href+")");
+			});
+			$tempElem.find("em").each(function(i, elem){
+				var text = $(elem).html();
+				$(elem).replaceWith("_"+text+"_");
+			});
+			$tempElem.find("strong").each(function(i, elem){
+				var text = $(elem).html();
+				$(elem).replaceWith("**"+text+"**");
+			});
+			return $tempElem.html();
 		}
 	};
 	
-	
-	function setRangeWithin(node, offset) {
-		node.focus();
-		var textNode = node.firstChild;
-		var caret = offset; 
-		var range = document.createRange();
-		range.setStart(textNode, caret);
-		range.setEnd(textNode, caret);
-		var sel = window.getSelection();
-		sel.removeAllRanges();
-		sel.addRange(range);
+	function setRangeWithin(node, offset){
+		var range = null;
+		for(var i=0;i<node.childNodes.length;i++){
+			var textNode = node.childNodes[i];
+			if(textNode.childNodes.length>0){
+				range = setRangeWithin(textNode, offset);
+				continue;
+			}
+			if(range==null){
+				if(textNode.nodeType!=3 || offset>textNode.length){
+					offset-=textNode.length;
+					continue;
+				}
+				range = document.createRange();
+				range.setStart(textNode, offset);
+				range.setEnd(textNode, offset);
+				var sel = window.getSelection();
+				sel.removeAllRanges();
+				sel.addRange(range);
+				break;
+			} else
+				break;
+		}
 		return range;
+	}
+	
+	function caretIn(element){
+		var parentElem = getCaretParentElementWithin(element);
+		return typeof(parentElem)=="undefined";
+	}
+	
+	function insertAtCaret(html, selectPastedContent) {
+		var sel, range;
+		if (window.getSelection) {
+			// IE9 and non-IE
+			sel = window.getSelection();
+			if (sel.getRangeAt && sel.rangeCount) {
+				range = sel.getRangeAt(0);
+				range.deleteContents();
+	
+				// Range.createContextualFragment() would be useful here but is
+				// only relatively recently standardized and is not supported in
+				// some browsers (IE9, for one)
+				var el = document.createElement("div");
+				el.innerHTML = html;
+				var frag = document.createDocumentFragment(), node, lastNode;
+				while ( (node = el.firstChild) ) {
+					lastNode = frag.appendChild(node);
+				}
+				var firstNode = frag.firstChild;
+				range.insertNode(frag);
+	
+				// Preserve the selection
+				if (lastNode) {
+					range = range.cloneRange();
+					range.setStartAfter(lastNode);
+					if (selectPastedContent) {
+						range.setStartBefore(firstNode);
+					} else {
+						range.collapse(true);
+					}
+					sel.removeAllRanges();
+					sel.addRange(range);
+				}
+			}
+		} else if ( (sel = document.selection) && sel.type != "Control") {
+			// IE < 9
+			var originalRange = sel.createRange();
+			originalRange.collapse(true);
+			sel.createRange().pasteHTML(html);
+			if (selectPastedContent) {
+				range = sel.createRange();
+				range.setEndPoint("StartToStart", originalRange);
+				range.select();
+			}
+		}
 	}
 	
 	function getCaretOffsetWithin(element) {
