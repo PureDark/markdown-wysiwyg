@@ -147,7 +147,6 @@
 			return;
 		var content = $(parentElem).html();
 		var offset = getCaretOffsetWithin(parentElem);
-		var lastCon = content.substring(offset-2, offset);
 		var reg = /(^\/$| \/$)/;
 		if(reg.exec(content)){
 			var $cm = $(".CommandMenu");
@@ -164,11 +163,11 @@
 	
 	$(window).scroll(function(event){
 		if(flagMenuOpen){
-			var parentElem =  $(getCaretParentElementWithin(editor));
+			var parentElem =  getCaretParentElementWithin(editor);
 			var $cm = $(".CommandMenu");
 			var coor = getSelectionCoords();
 			$cm.css("left", coor.x);
-			$cm.css("top", coor.y+parentElem.height());
+			$cm.css("top", coor.y+$(parentElem).height());
 		}
     });
 	
@@ -184,12 +183,12 @@
 			flagEdit = false;
 			return;
 		}
-		var parentElem =  $(getCaretParentElementWithin(this));
-		var offset = getCaretOffsetWithin(parentElem[0]);
-		var mdItem = MarkDownItem.newInstance(parentElem[0]);
+		var parentElem =  getCaretParentElementWithin(this);
+		var offset = getCaretOffsetWithin(parentElem);
+		var mdItem = MarkDownItem.newInstance(parentElem);
 		if($(mdItem.rootElem).hasClass("title"))
 			return;
-		flagEdit = mdItem.checkMarkDown(offset);
+		mdItem.checkMarkDown(offset);
     });
 	
 
@@ -197,28 +196,28 @@
 	  //13:Enter, 8:Backspace, 127:Delete
 		switch(e.keyCode){
 			case 13:
-				var parentElem =  $(getCaretParentElementWithin(this));
-				if(parentElem[0].tagName=="EM"||parentElem[0].tagName=="STRONG"||parentElem[0].tagName=="I"||parentElem[0].tagName=="B")
-					parentElem = $(parentElem.parents(":not(em,strong,i,b)")[0]);
-				var mdItem = MarkDownItem.newInstance(parentElem[0]);
+				var parentElem =  getCaretParentElementWithin(this);
+				var mdItem = MarkDownItem.newInstance(parentElem);
+				parentElem = mdItem.parentElem;
 				if(flagMenuOpen){
 					e.preventDefault();
 					CommandMenu.action();
-				}else{
+				} else if(parentElem.tagName==="CODE"){
+				} else {
 					flagEdit = true;
-					if(parentElem[0].tagName == "LI"){
+					if(parentElem.tagName == "LI"){
 						e.preventDefault();
 						var liArr = $(parentElem).parent().find("li");
-						if(liArr.index(parentElem)==liArr.size()-1&&(parentElem.html()==""||parentElem.html()=="<br>")){
-							parentElem.remove();
+						if(liArr.index(parentElem)==liArr.size()-1&&($(parentElem).html()==""||$(parentElem).html()=="<br>")){
+							$(parentElem).remove();
 							mdItem.insertNewAfter(true);
 						} else{
 							mdItem.insertNewLi();
 						}
-					}else if(parentElem[0].tagName == "P"&&parentElem.parent("blockquote").size()>0){
+					}else if(parentElem.tagName == "P"&&$(parentElem).parent("blockquote").size()>0){
 						e.preventDefault();
-						var blockquote = parentElem.parent("blockquote");
-						if(parentElem.html()==""||parentElem.html()=="<br>"){
+						var blockquote = $(parentElem).parent("blockquote");
+						if($(parentElem).html()==""||$(parentElem).html()=="<br>"){
 							mdItem.insertNewAfter(true);
 							mdItem.rootElem.remove();
 						}else{
@@ -231,17 +230,17 @@
 				}
 				break;
 			case 8:
-				var parentElem =  $(getCaretParentElementWithin(this));
-				if(parentElem.parents(".title").size()>0){
-					if(parentElem.html()==""||parentElem.html()=="<br>"){
+				var parentElem =  getCaretParentElementWithin(this);
+				if($(parentElem).parents(".title").size()>0){
+					if($(parentElem).html()==""||$(parentElem).html()=="<br>"){
 						e.preventDefault();
 					}
 				}else{
 					var mdItem = MarkDownItem.newInstance(parentElem);
 					flagEdit = true;
-					var tagName = parentElem[0].tagName;
-					if(tagName != "P" || parentElem.parent("blockquote").size()>0){
-						if(parentElem.html()==""||parentElem.html()=="<br>"){
+					var tagName = parentElem.tagName;
+					if(tagName != "P" || $(parentElem).parent("blockquote").size()>0){
+						if($(parentElem).html()==""||$(parentElem).html()=="<br>"){
 							if(tagName == "LI"){
 								var liArr = $(parentElem).parent().find("li");
 								if(liArr.size()==1){
@@ -309,7 +308,7 @@
 					break;
 				case 8:
 			};
-			selectMenuOption(0);
+			CommandMenu.selectMenuOption(0);
 		},
 		selectMenuOption : function(pos){
 			var $options = $(".CommandMenu>.CommandEntry");
@@ -480,10 +479,12 @@
 	var MarkDownItem = {
 		newInstance: function(parentElem){
 			var mdItem = {};
+			if(parentElem.tagName=="EM"||parentElem.tagName=="STRONG"||parentElem.tagName=="I"||parentElem.tagName=="B"||parentElem.tagName=="A")
+				parentElem = $(parentElem).parents(":not(em,strong,i,b,a)")[0];
 			mdItem.parentElem = parentElem;
 			mdItem.rootElem = $(parentElem).parents(".markdown-item")[0];
 			mdItem.checkMarkDown = function(caretPos){
-				if(this.matchPrefix()||this.matchTextStyle()){
+				if(this.parentElem.tagName!=="CODE"&&(this.matchPrefix()||this.matchTextStyle())){
 					var oldText = this.getContentAsText();
 					var mdItem = this.checkIfChangeLine();
 					var newText = mdItem.getContentAsText();
@@ -496,15 +497,15 @@
 				return false;
 			};
 			mdItem.getContentAsText = function(){
-				return $('<div>').html($(this.parentElem).html()).text();;
+				return $('<div>').html($(this.parentElem).html()).text();
 			};
 			mdItem.getContentAsHtml = function(){
-				return $('<div>').text($(this.parentElem).html()).html();;
+				return $('<div>').text($(this.parentElem).html()).html();
 			};
 			mdItem.matchPrefix = function(){
 				var value = $(this.parentElem).html();
 				value = $('<div>').html(value).text();
-				var reg = /(?:^(?:[#|*|>]+|\d+\.|)|!?\[.*?\]\(.*?\)) /;
+				var reg = /(?:^(?:[#|*|>]+|\d+\.)|!?\[.*?\]\(.*?\)|^   ) /;
 				return reg.exec(value);
 			};
 			mdItem.matchTextStyle = function(){
@@ -514,14 +515,13 @@
 				return reg.exec(value);
 			};
 			mdItem.checkIfChangeLine = function(){
-				var value = $(this.parentElem).html();
-				value = $('<div>').html(value).text();
+				var value = this.getContentAsText();
 				var mdItem = this;
-				var newHtml = md.render(value);
+				mdItem.checkTextStyle();
+				var newHtml = md.render(mdItem.getContentAsText());
 				if(this.matchPrefix()){
 					if($(this.parentElem)[0].tagName == "LI"){
 						mdItem = this.insertNewAfter(false);
-						$(mdItem.parentElem).html($(this.parentElem).html());
 						var liArr = $(this.parentElem).parent().find("li");
 						if(liArr.size()>1){
 							$(this.parentElem).remove();
@@ -529,8 +529,9 @@
 							$(this.rootElem).remove();
 						}
 					}
+					flagEdit = true;
 					$(mdItem.rootElem).html(newHtml);
-					var child = $(mdItem.rootElem).children("p,h1,h2,h3,h4,h5,h6")[0] || $(mdItem.rootElem).find("ul>li,ol>li,blockquote>p")[0];
+					var child = $(mdItem.rootElem).children("p,h1,h2,h3,h4,h5,h6")[0] || $(mdItem.rootElem).find("ul>li,ol>li,blockquote>p,pre>code")[0];
 					if(child && child.innerHTML==""){
 						child.innerHTML = "<br>";
 					}else if($(mdItem.rootElem).find("blockquote") && $(mdItem.rootElem).find("blockquote").html()==""){
@@ -540,6 +541,7 @@
 					}
 					mdItem.parentElem = child;
 				}else if(this.matchTextStyle()){
+					flagEdit = true;
 					var content = $(newHtml).html();
 					$(this.parentElem).html(content);
 				}
@@ -567,9 +569,9 @@
 				var nextCon;
 				if(breakContent){
 					var offset = getCaretOffsetWithin(this.parentElem);
-					var content = $(this.parentElem).html();
-					lastCon = content.substring(0, offset);
-					nextCon = content.substr(offset);
+					var result = breakAtCaret(this.parentElem, offset);
+					lastCon = $("<div>").append(result[0]).html();
+					nextCon = $("<div>").append(result[1]).html();
 				}
 				lastCon = (lastCon=="")?"<br>":lastCon;
 				nextCon = (nextCon=="")?"<br>":nextCon;
@@ -582,9 +584,9 @@
 			};
 			mdItem.insertNewLi = function(){
 				var offset = getCaretOffsetWithin(this.parentElem);
-				var content = $(this.parentElem).html();
-				var lastCon = content.substring(0, offset);
-				var nextCon = content.substr(offset);
+				var result = breakAtCaret(this.parentElem, offset);
+				lastCon = $("<div>").append(result[0]).html();
+				nextCon = $("<div>").append(result[1]).html();
 				lastCon = (lastCon=="")?"<br>":lastCon;
 				nextCon = (nextCon=="")?"<br>":nextCon;
 				$(this.parentElem).html(lastCon);
@@ -594,9 +596,9 @@
 			};
 			mdItem.insertNewBlockquote = function(){
 				var offset = getCaretOffsetWithin(this.parentElem);
-				var content = $(this.parentElem).html();
-				var lastCon = content.substring(0, offset);
-				var nextCon = content.substr(offset);
+				var result = breakAtCaret(this.parentElem, offset);
+				lastCon = $("<div>").append(result[0]).html();
+				nextCon = $("<div>").append(result[1]).html();
 				lastCon = (lastCon=="")?"<br>":lastCon;
 				nextCon = (nextCon=="")?"<br>":nextCon;
 				$(this.parentElem).html(lastCon);
@@ -606,37 +608,32 @@
 				setRangeWithin(child, 0);
 			};
 			return mdItem;
-		},
-		checkTextStyle : function(html){
-			var $tempElem = $("<div>"+html+"</div>");
-			$tempElem.find("a").each(function(i, elem){
-				var href = $(elem).attr("href");
-				var text = $(elem).html();
-				text = (text!="")?text:href;
-				$(elem).replaceWith("["+text+"]("+href+")");
-			});
-			$tempElem.find("em").each(function(i, elem){
-				var text = $(elem).html();
-				$(elem).replaceWith("_"+text+"_");
-			});
-			$tempElem.find("strong").each(function(i, elem){
-				var text = $(elem).html();
-				$(elem).replaceWith("**"+text+"**");
-			});
-			return $tempElem.html();
 		}
 	};
+	
+	
+	function breakAtCaret(node, offset){
+		var length = $('<div>').html($(node).html()).text().length;
+		var startRange = setRangeWithin(node, 0).range;
+		var middleRange = setRangeWithin(node, offset).range;
+		var endRange = setRangeWithin(node, length).range;
+		startRange.setEnd(middleRange.startContainer, middleRange.startOffset);
+		endRange.setStart(middleRange.endContainer, middleRange.endOffset);
+		return [startRange.extractContents(), endRange.extractContents()];
+	}
 	
 	function setRangeWithin(node, offset){
 		var range = null;
 		for(var i=0;i<node.childNodes.length;i++){
 			var textNode = node.childNodes[i];
 			if(textNode.childNodes.length>0){
-				range = setRangeWithin(textNode, offset);
+				var result = setRangeWithin(textNode, offset);
+				range = result.range;
+				offset = result.offset;
 				continue;
 			}
 			if(range==null){
-				if(textNode.nodeType!=3 || offset>textNode.length){
+				if(offset>textNode.length){
 					offset-=textNode.length;
 					continue;
 				}
@@ -650,7 +647,7 @@
 			} else
 				break;
 		}
-		return range;
+		return {range :range, offset : offset};
 	}
 	
 	function caretIn(element){
