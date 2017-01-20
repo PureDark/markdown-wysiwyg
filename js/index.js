@@ -120,10 +120,24 @@
 	var flagEdit = false;
 	var flagMenuOpen = false;
 	var flagLinkModalOpen = false;
+	var flagTableModalOpen = false;
+	var lastParentElem;
 	
 	$(document).on('focus', '[contenteditable]', function() {
 		var $this = $(this);
 		$this.data('before', $this.html());
+		if(flagLinkModalOpen){
+			var $linkEditor = $(".LinkEditor");
+			$linkEditor.removeClass("LinkEditor--visible");
+			flagLinkModalOpen = false;
+			lastParentElem = null;
+		}
+		if(flagTableModalOpen){
+			var $TableEditor = $(".TableEditor");
+			$TableEditor.removeClass("TableEditor--visible");
+			flagTableModalOpen = false;
+			lastParentElem = null;
+		}
 		return $this;
 	}).on('blur keyup paste input', '[contenteditable]', function() {
 		var $this = $(this);
@@ -147,6 +161,8 @@
 		var $options = $(".CommandMenu>.CommandEntry");
 		var pos = $options.index(this);
 		CommandMenu.selectMenuOption(pos);
+    }).click(function(e) {
+        CommandMenu.action();
     });
 	
 	document.onselectionchange = function() {
@@ -159,23 +175,32 @@
 		if(reg.exec(content)){
 			var $cm = $(".CommandMenu");
 			$cm.show();
+			CommandMenu.setUp();
 			var coor = getSelectionCoords();
 			$cm.css("left", coor.x);
 			$cm.css("top", coor.y+$(parentElem).height());
 			flagMenuOpen = true;
 		}else{
-			$(".CommandMenu").hide();
-			flagMenuOpen = false;
+			setTimeout(function(){
+				$(".CommandMenu").hide();
+				CommandMenu.selectMenuOption(0);
+				flagMenuOpen = false;
+			},100);
 		}
 	};
 	
 	$(window).scroll(function(event){
 		if(flagMenuOpen){
-			var parentElem =  getCaretParentElementWithin(editor);
+			var parentElem = getCaretParentElementWithin(editor);
 			var $cm = $(".CommandMenu");
 			var coor = getSelectionCoords();
 			$cm.css("left", coor.x);
 			$cm.css("top", coor.y+$(parentElem).height());
+		} else if(flagLinkModalOpen){
+			var parentElem =  lastParentElem;
+			var $linkEditor = $(".LinkEditor");
+			var top = $(parentElem).offset().top + $(parentElem).outerHeight(true) - $(document).scrollTop();
+			$linkEditor.css("top", top);
 		}
     });
 	
@@ -287,6 +312,12 @@
     });
 	
 	var CommandMenu = {
+		lastMDItem: null,
+		lastOffset: 0,
+		setUp : function(){
+			CommandMenu.lastMDItem = MarkDownItem.newInstance(getCaretParentElementWithin(editor));
+			CommandMenu.lastOffset = getCaretOffsetWithin(CommandMenu.lastMDItem.parentElem);
+		},
 		action : function(){
 			var $options = $(".CommandMenu>.CommandEntry");
 			var $selected = $(".CommandMenu>.CommandEntry--focused");
@@ -317,6 +348,9 @@
 					CommandMenu.Link();
 					break;
 				case 8:
+					CommandMenu.Table();
+					break;
+				case 9:
 					CommandMenu.Image();
 					break;
 			};
@@ -352,9 +386,8 @@
 			return value;
 		},
 		Heading : function(level){
-			var parentElem =  getCaretParentElementWithin(editor);
-			var offset = getCaretOffsetWithin(parentElem);
-			var mdItem = MarkDownItem.newInstance(parentElem);
+			var mdItem = CommandMenu.lastMDItem;
+			var offset = CommandMenu.lastOffset;
 			var html = $(mdItem.parentElem).html();
 			var prefix = "";
 			for(var i=0;i<level;i++){
@@ -368,9 +401,8 @@
 			mdItem.checkMarkDown(offset);
 		},
 		Blockquote : function(){
-			var parentElem =  getCaretParentElementWithin(editor);
-			var offset = getCaretOffsetWithin(parentElem);
-			var mdItem = MarkDownItem.newInstance(parentElem);
+			var mdItem = CommandMenu.lastMDItem;
+			var offset = CommandMenu.lastOffset;
 			var html = $(mdItem.parentElem).html();
 			var prefix = "> ";
 			offset += 2;
@@ -380,9 +412,8 @@
 			mdItem.checkMarkDown(offset);
 		},
 		UnorderedList : function(){
-			var parentElem =  getCaretParentElementWithin(editor);
-			var offset = getCaretOffsetWithin(parentElem);
-			var mdItem = MarkDownItem.newInstance(parentElem);
+			var mdItem = CommandMenu.lastMDItem;
+			var offset = CommandMenu.lastOffset;
 			var html = $(mdItem.parentElem).html();
 			var prefix = "* ";
 			offset += 2;
@@ -391,9 +422,8 @@
 			mdItem.checkMarkDown(offset);
 		},
 		OrderedList : function(){
-			var parentElem =  getCaretParentElementWithin(editor);
-			var offset = getCaretOffsetWithin(parentElem);
-			var mdItem = MarkDownItem.newInstance(parentElem);
+			var mdItem = CommandMenu.lastMDItem;
+			var offset = CommandMenu.lastOffset;
 			var html = $(mdItem.parentElem).html();
 			var prefix = "1. ";
 			offset += 3;
@@ -402,9 +432,8 @@
 			mdItem.checkMarkDown(offset);
 		},
 		Code : function(){
-			var parentElem =  getCaretParentElementWithin(editor);
-			var offset = getCaretOffsetWithin(parentElem);
-			var mdItem = MarkDownItem.newInstance(parentElem);
+			var mdItem = CommandMenu.lastMDItem;
+			var offset = CommandMenu.lastOffset;
 			var html = $(mdItem.parentElem).html();
 			var prefix = "   ";
 			offset += 3;
@@ -413,16 +442,16 @@
 			mdItem.checkMarkDown(offset);
 		},
 		Link : function(){
-			var parentElem = getCaretParentElementWithin(editor);
-			var $linkEditor = $(".EmbedEditor");
-			$linkEditor.show();
+			var mdItem = CommandMenu.lastMDItem;
+			var offset = CommandMenu.lastOffset;
+			var $linkEditor = $(".LinkEditor");
+			$linkEditor.addClass("LinkEditor--visible");
 			var coor = getSelectionCoords();
 			$linkEditor.css("left", coor.x);
-			$linkEditor.css("top", coor.y+$(parentElem).height());
+			$linkEditor.css("top", coor.y+$(mdItem.parentElem).height());
 			$linkEditor.children("[name='text']").focus();
 			flagLinkModalOpen = true;
-			var mdItem = MarkDownItem.newInstance(parentElem);
-			var offset = getCaretOffsetWithin(mdItem.parentElem);
+			lastParentElem = mdItem.parentElem;
 			var oldText = mdItem.getContentAsText();
 			var html = $(mdItem.parentElem).html();
 			html = CommandMenu.removeSlash(html);
@@ -439,8 +468,9 @@
 				}
 			});
 			$linkEditor.children("[type='submit']").click(function(e) {
-				$linkEditor.hide();
+				$linkEditor.removeClass("LinkEditor--visible");
 				flagLinkModalOpen = false;
+				lastParentElem = null;
 				$(this).unbind('click');
 				$linkEditor.unbind('keydown');
 				
@@ -455,10 +485,62 @@
 				insertAtCaret(html, false);
             });
 		},
+		Table : function(){
+			var mdItem = CommandMenu.lastMDItem;
+			var offset = CommandMenu.lastOffset;
+			var $tableEditor = $(".TableEditor");
+			$tableEditor.addClass("TableEditor--visible");
+			var coor = getSelectionCoords();
+			$tableEditor.css("left", coor.x);
+			$tableEditor.css("top", coor.y+$(mdItem.parentElem).height());
+			$tableEditor.children("[name='row']").focus();
+			flagTableModalOpen = true;
+			lastParentElem = mdItem.parentElem;
+			var html = $(mdItem.parentElem).html();
+			html = CommandMenu.removeSlash(html);
+			$(mdItem.parentElem).html(html);
+			
+			$tableEditor.keydown(function(e){
+				if(e.keyCode===13){
+					e.preventDefault();
+					$tableEditor.children("[type='submit']").click();
+				}
+			});
+			$tableEditor.children("[type='submit']").click(function(e) {
+				var maxRow = $tableEditor.children("[name='row']").val();
+				var maxCol = $tableEditor.children("[name='col']").val();
+				var reg = /\d+/;
+				if(!reg.exec(maxRow)||!reg.exec(maxCol)||maxRow<1||maxCol<1){
+					alert("输入行列数有误，请检查");
+				}else{
+					$tableEditor.removeClass("TableEditor--visible");
+					flagTableModalOpen = false;
+					lastParentElem = null;
+					$(this).unbind('click');
+					$tableEditor.unbind('keydown');
+					$tableEditor.children("[name='row']").val("");
+					$tableEditor.children("[name='col']").val("");
+					var markdown = "";
+					for(var col=1;col<=maxCol;col++){
+						markdown += "|"+col;
+					}
+					markdown += "\n";
+					for(var col=1;col<=maxCol;col++){
+						markdown += "|-";
+					}
+					for(var row=2;row<=maxRow;row++){
+						markdown += "\n|"+row;
+					}
+					
+					var html = md.render(markdown);
+					mdItem = mdItem.insertNewAfter(false);
+					insertAtCaret(html, false);
+				}
+            });
+		},
 		Image : function(){
-			var parentElem = getCaretParentElementWithin(editor);
-			var mdItem = MarkDownItem.newInstance(parentElem);
-			var offset = getCaretOffsetWithin(mdItem.parentElem);
+			var mdItem = CommandMenu.lastMDItem;
+			var offset = CommandMenu.lastOffset;
 			var oldText = mdItem.getContentAsText();
 			var html = $(mdItem.parentElem).html();
 			html = CommandMenu.removeSlash(html);
@@ -619,16 +701,16 @@
 				return $(this.parentElem).html();
 			};
 			mdItem.insertNewAfter = function(breakContent){
-				var lastCon = ""; 
 				var nextCon = "";
 				if(breakContent){
+					var lastCon = ""; 
 					var result = breakAtCaret(this.parentElem);
 					lastCon = $("<div>").append(result[0]).html();
 					nextCon = $("<div>").append(result[1]).html();
+					lastCon = (lastCon=="")?"<br>":lastCon;
+					$(this.parentElem).html(lastCon);
 				}
-				lastCon = (lastCon=="")?"<br>":lastCon;
 				nextCon = (nextCon=="")?"<br>":nextCon;
-				$(this.parentElem).html(lastCon);
 				var newMDitem = $("<div class=\"markdown-item\"><p>"+nextCon+"</p></div>");
 				newMDitem.insertAfter(this.rootElem);
 				var child = newMDitem.children("p")[0];

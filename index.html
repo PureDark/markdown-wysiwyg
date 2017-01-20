@@ -70,15 +70,28 @@
             <span class="CommandEntry-shortcut">link</span>
         </div>
         <div class="CommandEntry" role="option">
+            <span class="CommandEntry-visual"><span class="TableCommandIcon"></span></span>
+            <span class="CommandEntry-text">表格</span>
+            <span class="CommandEntry-shortcut">table</span>
+        </div>
+        <div class="CommandEntry" role="option">
             <span class="CommandEntry-visual"><span class="ImageCommandIcon"></span></span>
             <span class="CommandEntry-text">图片</span>
             <span class="CommandEntry-shortcut">image</span>
         </div>
     </div>
-    <div class="EmbedEditor EmbedEditor--visible" style="display:none;">
-        <input class="EmbedEditor-input" placeholder="文本（可选）" name="text" style="width: 80px">
-        <input class="EmbedEditor-input" placeholder="链接地址" name="link">
-        <button class="EmbedEditor-submit" type="submit">OK</button>
+    <div class="LinkEditor">
+        <input placeholder="文本（可选）" name="text" style="width: 80px" />
+        <input placeholder="链接地址" name="link" />
+        <button type="submit">OK</button>
+    </div>
+    <div class="TableEditor">
+        <input placeholder="行数" name="row" maxlength="2" style="width: 30px; ime-mode:disabled;padding-right:0px" 
+        onKeyup="this.value=this.value.replace(/[^\d]/g,'');"  onPaste="this.value=this.value.replace(/[^\d]/g,'');"/>
+        <span>×</span>
+        <input placeholder="列数" name="col" maxlength="2" style="width: 30px; ime-mode:disabled; margin-left:4px" 
+        onKeyup="this.value=this.value.replace(/[^\d]/g,'');" onPaste="this.value=this.value.replace(/[^\d]/g,'');" />
+        <button type="submit">OK</button>
     </div>
     <div id="menu">
         <span>Save As</span>
