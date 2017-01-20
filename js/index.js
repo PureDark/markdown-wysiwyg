@@ -17,8 +17,7 @@
     var md = markdownit({
       html: true,
 	  linkify : true
-    })
-      .use(markdownitFootnote);
+    }).use(markdownitFootnote);
 	  
 	var $editor = $("#out");
 	var editor = $editor[0];
@@ -133,6 +132,15 @@
 			$this.trigger('change');
 		}
 		return $this;
+	}).on('dragenter dragover', function(e){
+		e.preventDefault();
+		e.stopPropagation();
+	}).on('drop', function(e){
+		e.preventDefault();
+		e.stopPropagation();
+		var file = e.originalEvent.dataTransfer.files[0];
+		var html = '<img src="'+CommandMenu.getObjectURL(file)+'" />';
+		insertAtCaret(html, false);
 	});
 	
 	$(".CommandEntry").hover(function(e) {
@@ -256,23 +264,25 @@
 								setRangeWithin(newItem[0], 0);
 							}
 						}
+					} else {
+						
 					}
 				}
 				break
-				case 127:
-					break
-				case 38: //上
-					if(flagMenuOpen){
-						e.preventDefault();
-						CommandMenu.MoveMenuSelection(-1);
-					}
-					break;
-				case 40: //下
-					if(flagMenuOpen){
-						e.preventDefault();
-						CommandMenu.MoveMenuSelection(1);
-					}
-					break;
+			case 127:
+				break
+			case 38: //上
+				if(flagMenuOpen){
+					e.preventDefault();
+					CommandMenu.MoveMenuSelection(-1);
+				}
+				break;
+			case 40: //下
+				if(flagMenuOpen){
+					e.preventDefault();
+					CommandMenu.MoveMenuSelection(1);
+				}
+				break;
 		}
     });
 	
@@ -307,7 +317,7 @@
 					CommandMenu.Link();
 					break;
 				case 8:
-					CommandMenu.InsertImage();
+					CommandMenu.Image();
 					break;
 			};
 			CommandMenu.selectMenuOption(0);
@@ -347,12 +357,14 @@
 			var mdItem = MarkDownItem.newInstance(parentElem);
 			var html = $(mdItem.parentElem).html();
 			var prefix = "";
-			for(var i=0;i<level;i++)
+			for(var i=0;i<level;i++){
 				prefix+="#";
+				offset += 1;
+			}
+			prefix = prefix + " ";
+			offset += 1;
 			html = CommandMenu.removeSlash(html);
-			if(offset>html.length)
-				offset = html.length;
-			$(mdItem.parentElem).html(prefix+" "+html);
+			$(mdItem.parentElem).html(prefix+html);
 			mdItem.checkMarkDown(offset);
 		},
 		Blockquote : function(){
@@ -360,9 +372,11 @@
 			var offset = getCaretOffsetWithin(parentElem);
 			var mdItem = MarkDownItem.newInstance(parentElem);
 			var html = $(mdItem.parentElem).html();
-			var prefix = ">";
+			var prefix = "> ";
+			offset += 2;
 			html = CommandMenu.removeSlash(html);
-			$(mdItem.parentElem).html(prefix+" "+html);
+			$(mdItem.parentElem).html(prefix+html);
+					console.log("offset:"+offset);
 			mdItem.checkMarkDown(offset);
 		},
 		UnorderedList : function(){
@@ -370,9 +384,10 @@
 			var offset = getCaretOffsetWithin(parentElem);
 			var mdItem = MarkDownItem.newInstance(parentElem);
 			var html = $(mdItem.parentElem).html();
-			var prefix = "*";
+			var prefix = "* ";
+			offset += 2;
 			html = CommandMenu.removeSlash(html);
-			$(mdItem.parentElem).html(prefix+" "+html);
+			$(mdItem.parentElem).html(prefix+html);
 			mdItem.checkMarkDown(offset);
 		},
 		OrderedList : function(){
@@ -380,9 +395,10 @@
 			var offset = getCaretOffsetWithin(parentElem);
 			var mdItem = MarkDownItem.newInstance(parentElem);
 			var html = $(mdItem.parentElem).html();
-			var prefix = "1.";
+			var prefix = "1. ";
+			offset += 3;
 			html = CommandMenu.removeSlash(html);
-			$(mdItem.parentElem).html(prefix+" "+html);
+			$(mdItem.parentElem).html(prefix+html);
 			mdItem.checkMarkDown(offset);
 		},
 		Code : function(){
@@ -391,6 +407,7 @@
 			var mdItem = MarkDownItem.newInstance(parentElem);
 			var html = $(mdItem.parentElem).html();
 			var prefix = "   ";
+			offset += 3;
 			html = CommandMenu.removeSlash(html);
 			$(mdItem.parentElem).html(prefix+" "+html);
 			mdItem.checkMarkDown(offset);
@@ -438,7 +455,7 @@
 				insertAtCaret(html, false);
             });
 		},
-		InsertImage : function(){
+		Image : function(){
 			var parentElem = getCaretParentElementWithin(editor);
 			var mdItem = MarkDownItem.newInstance(parentElem);
 			var offset = getCaretOffsetWithin(mdItem.parentElem);
@@ -456,22 +473,36 @@
 			$inputFile.appendTo($("body"));
 			$inputFile.change(function(e) {
 				$inputFile.unbind('change');
-				CommandMenu.ImageToBase64($inputFile[0], function(base64){
+				$inputFile.remove();
+				var file = $inputFile[0].files[0];
+				var html = '<img src="'+CommandMenu.getObjectURL(file)+'" />';
+				setRangeWithin(mdItem.parentElem, offset);
+				insertAtCaret(html, false);
+				/*CommandMenu.ImageToBase64(file, function(base64){
 					$inputFile.remove();
 					var html = '<img src="'+base64+'" />';
 					setRangeWithin(mdItem.parentElem, offset);
 					insertAtCaret(html, false);
-				});
+				});*/
             });
 			$inputFile.click();
 		},
-		ImageToBase64 : function(inputFile, callback) {  
+		getObjectURL : function (file) {
+            var url = null;
+			if (window.createObjectURL != undefined)
+				url = window.createObjectURL(file);
+			else if (window.URL != undefined)
+				url = window.URL.createObjectURL(file);
+			else if (window.webkitURL != undefined)
+				url = window.webkitURL.createObjectURL(file);
+            return url;
+        },
+		ImageToBase64 : function(file, callback) {  
 			if (typeof (FileReader) === 'undefined') {  
 				alert("抱歉，你的浏览器不支持 FileReader，不能将图片转换为Base64，请使用现代浏览器操作！");  
 			} else {  
 				try {  
 					/*图片转Base64 核心代码*/  
-					var file = inputFile.files[0];
 					if (!/image\/\w+/.test(file.type)) {  
 						alert("请确保文件为图像类型");  
 						return false;  
@@ -506,25 +537,30 @@
 					setRangeWithin(mdItem.parentElem, caretPos);
 					return true;
 				}
+				var reg = / ___/;
+				if(reg.exec(this.getContentAsText())){
+					var parentElem = getCaretParentElementWithin(editor);
+					if(parentElem.tagName=="EM"||parentElem.tagName=="STRONG"||parentElem.tagName=="I"||parentElem.tagName=="B"||parentElem.tagName=="A"){
+						var offset = getCaretOffsetWithin(this.parentElem);
+						var html = $(parentElem).html().replace(reg, " ");
+						$(parentElem).html(html)
+						$(parentElem).after(" ");
+						offset-=2;
+						setRangeWithin(this.parentElem, offset);
+					}
+				}
 				return false;
 			};
 			mdItem.getContentAsText = function(){
 				return $('<div>').html($(this.parentElem).html()).text();
 			};
-			mdItem.getContentAsHtml = function(){
-				return $('<div>').text($(this.parentElem).html()).html();
-			};
 			mdItem.matchPrefix = function(){
-				var value = $(this.parentElem).html();
-				value = $('<div>').html(value).text();
-				var reg = /(?:^(?:[#|*|>]+|\d+\.)|!?\[.*?\]\(.*?\)|^   ) /;
-				return reg.exec(value);
+				var reg = /(?:^(?:[#|*|>]+|\d+\.) |!?\[.*?\]\(.*?\) |^    [^ ])/;
+				return reg.exec(this.getContentAsText());
 			};
 			mdItem.matchTextStyle = function(){
-				var value = $(this.parentElem).html();
-				value = $('<div>').html(value).text();
 				var reg = /(?:^| )(?:(([\*_])\2)[^\*_]+?\1|([\*_])[^\*_]+?\3)/;
-				return reg.exec(value);
+				return reg.exec(this.getContentAsText());
 			};
 			mdItem.checkIfChangeLine = function(){
 				var value = this.getContentAsText();
@@ -566,6 +602,12 @@
 					text = (text!="")?text:href;
 					$(elem).replaceWith("["+text+"]("+href+")");
 				});
+				$(this.parentElem).find("img").each(function(i, elem){
+					var src = $(elem).attr("src");
+					var alt = $(elem).attr("alt");
+					alt = (alt!="")?alt:"";
+					$(elem).replaceWith("!["+alt+"]("+src+")");
+				});
 				$(this.parentElem).find("em,i").each(function(i, elem){
 					var text = $(elem).html();
 					$(elem).replaceWith("_"+text+"_");
@@ -580,8 +622,7 @@
 				var lastCon = ""; 
 				var nextCon = "";
 				if(breakContent){
-					var offset = getCaretOffsetWithin(this.parentElem);
-					var result = breakAtCaret(this.parentElem, offset);
+					var result = breakAtCaret(this.parentElem);
 					lastCon = $("<div>").append(result[0]).html();
 					nextCon = $("<div>").append(result[1]).html();
 				}
@@ -595,8 +636,7 @@
 				return MarkDownItem.newInstance(child);
 			};
 			mdItem.insertNewLi = function(){
-				var offset = getCaretOffsetWithin(this.parentElem);
-				var result = breakAtCaret(this.parentElem, offset);
+				var result = breakAtCaret(this.parentElem);
 				lastCon = $("<div>").append(result[0]).html();
 				nextCon = $("<div>").append(result[1]).html();
 				lastCon = (lastCon=="")?"<br>":lastCon;
@@ -607,8 +647,7 @@
 				setRangeWithin(parentElem[0], 0);
 			};
 			mdItem.insertNewBlockquote = function(){
-				var offset = getCaretOffsetWithin(this.parentElem);
-				var result = breakAtCaret(this.parentElem, offset);
+				var result = breakAtCaret(this.parentElem);
 				lastCon = $("<div>").append(result[0]).html();
 				nextCon = $("<div>").append(result[1]).html();
 				lastCon = (lastCon=="")?"<br>":lastCon;
@@ -624,13 +663,12 @@
 	};
 	
 	
-	function breakAtCaret(node, offset){
-		var length = $('<div>').html($(node).html()).text().length;
-		var startRange = setRangeWithin(node, 0).range;
-		var middleRange = setRangeWithin(node, offset).range;
-		var endRange = setRangeWithin(node, length).range;
-		startRange.setEnd(middleRange.startContainer, middleRange.startOffset);
-		endRange.setStart(middleRange.endContainer, middleRange.endOffset);
+	function breakAtCaret(node){
+		var currentRange = getCurrentRange();
+		var startRange = placeCaretAt(node, true);
+		var endRange = placeCaretAt(node, false);
+		startRange.setEnd(currentRange.startContainer, currentRange.startOffset);
+		endRange.setStart(currentRange.endContainer, currentRange.endOffset);
 		return [startRange.extractContents(), endRange.extractContents()];
 	}
 	
@@ -645,26 +683,121 @@
 				continue;
 			}
 			if(range==null){
-				if(offset>textNode.length){
-					offset-=textNode.length;
-					continue;
+				if(textNode.nodeType!=3){
+					if(offset>1){
+						offset--;
+						continue;
+					}else{
+						range = document.createRange();
+						range.setStartAfter(textNode);
+						range.collapse(true);
+						var sel = window.getSelection();
+						sel.removeAllRanges();
+						sel.addRange(range);
+						break;
+					}
+				} else {
+					if(offset>textNode.length){
+						offset-=textNode.length;
+						continue;
+					}
+					range = document.createRange();
+					range.setStart(textNode, offset);
+					range.collapse(true);
+					var sel = window.getSelection();
+					sel.removeAllRanges();
+					sel.addRange(range);
+					break;
 				}
-				range = document.createRange();
-				range.setStart(textNode, offset);
-				range.setEnd(textNode, offset);
-				var sel = window.getSelection();
-				sel.removeAllRanges();
-				sel.addRange(range);
-				break;
 			} else
 				break;
 		}
 		return {range :range, offset : offset};
 	}
 	
+	function placeCaretAt(el, atStart) {
+		var range = null;
+		el.focus();
+		if (typeof window.getSelection != "undefined"
+				&& typeof document.createRange != "undefined") {
+			range = document.createRange();
+			range.selectNodeContents(el);
+			range.collapse(atStart);
+			var sel = window.getSelection();
+			sel.removeAllRanges();
+			sel.addRange(range);
+		} else if (typeof document.body.createTextRange != "undefined") {
+			var textRange = document.body.createTextRange();
+			textRange.moveToElementText(el);
+			textRange.collapse(atStart);
+			textRange.select();
+			range = textRange;
+		}
+		return range;
+	}
+	
+	function getCurrentRange() {
+		var range = null;
+		if (typeof window.getSelection != "undefined") {
+			var sel = window.getSelection();
+			if(sel.rangeCount>0)
+				range = sel.getRangeAt(0);
+		} else if (typeof document.getSelection != "undefined") {
+			var sel = document.getSelection();
+			if(sel.rangeCount>0)
+				range = sel.getRangeAt(0);
+		}
+		return range;
+	}
+	
 	function caretIn(element){
 		var parentElem = getCaretParentElementWithin(element);
 		return typeof(parentElem)=="undefined";
+	}
+	
+	function getCaretOffsetWithin(element) {
+		var caretOffset = 0;
+		var doc = element.ownerDocument || element.document;
+		var win = doc.defaultView || doc.parentWindow;
+		var sel;
+		if (typeof win.getSelection != "undefined") {
+			sel = win.getSelection();
+			if (sel.rangeCount > 0) {
+				var range = win.getSelection().getRangeAt(0);
+				var preCaretRange = range.cloneRange();
+				preCaretRange.selectNodeContents(element);
+				preCaretRange.setEnd(range.endContainer, range.endOffset);
+				caretOffset = preCaretRange.toString().length;
+			}
+		} else if ( (sel = doc.selection) && sel.type != "Control") {
+			var textRange = sel.createRange();
+			var preCaretTextRange = doc.body.createTextRange();
+			preCaretTextRange.moveToElementText(element);
+			preCaretTextRange.setEndPoint("EndToEnd", textRange);
+			caretOffset = preCaretTextRange.text.length;
+		}
+		return caretOffset;
+	}
+	
+	function getCaretParentElementWithin(element) {
+		var parentElement;
+		var doc = element.ownerDocument || element.document;
+		var win = doc.defaultView || doc.parentWindow;
+		var sel;
+		if (typeof win.getSelection != "undefined") {
+			sel = win.getSelection();
+			if (sel.rangeCount > 0) {
+				var range = win.getSelection().getRangeAt(0);
+				if(range.startContainer.toString()=="[object Text]")
+					parentElement = range.startContainer.parentElement;
+				else
+					parentElement = range.startContainer;
+			}
+		} else if ( (sel = doc.selection) && sel.type != "Control") {
+			var textRange = sel.createRange();
+			parentElement = range.parentElement();
+		}
+		return parentElement;
 	}
 	
 	function insertAtCaret(html, selectPastedContent) {
@@ -712,51 +845,6 @@
 				range.select();
 			}
 		}
-	}
-	
-	function getCaretOffsetWithin(element) {
-		var caretOffset = 0;
-		var doc = element.ownerDocument || element.document;
-		var win = doc.defaultView || doc.parentWindow;
-		var sel;
-		if (typeof win.getSelection != "undefined") {
-			sel = win.getSelection();
-			if (sel.rangeCount > 0) {
-				var range = win.getSelection().getRangeAt(0);
-				var preCaretRange = range.cloneRange();
-				preCaretRange.selectNodeContents(element);
-				preCaretRange.setEnd(range.endContainer, range.endOffset);
-				caretOffset = preCaretRange.toString().length;
-			}
-		} else if ( (sel = doc.selection) && sel.type != "Control") {
-			var textRange = sel.createRange();
-			var preCaretTextRange = doc.body.createTextRange();
-			preCaretTextRange.moveToElementText(element);
-			preCaretTextRange.setEndPoint("EndToEnd", textRange);
-			caretOffset = preCaretTextRange.text.length;
-		}
-		return caretOffset;
-	}
-	
-	function getCaretParentElementWithin(element) {
-		var parentElement;
-		var doc = element.ownerDocument || element.document;
-		var win = doc.defaultView || doc.parentWindow;
-		var sel;
-		if (typeof win.getSelection != "undefined") {
-			sel = win.getSelection();
-			if (sel.rangeCount > 0) {
-				var range = win.getSelection().getRangeAt(0);
-				if(range.startContainer.toString()=="[object Text]")
-					parentElement = range.startContainer.parentElement;
-				else
-					parentElement = range.startContainer;
-			}
-		} else if ( (sel = doc.selection) && sel.type != "Control") {
-			var textRange = sel.createRange();
-			parentElement = range.parentElement();
-		}
-		return parentElement;
 	}
 	
 	function getSelectionCoords(win) {
