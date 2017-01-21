@@ -167,7 +167,7 @@
 	
 	document.onselectionchange = function() {
 		var parentElem = getCaretParentElementWithin(editor);
-		if(typeof(parentElem)=="undefined" || $(parentElem).parent(".title").size()>0)
+		if(typeof(parentElem)=="undefined" || $(parentElem).parents(".title,table").size()>0)
 			return;
 		var content = $(parentElem).html();
 		var offset = getCaretOffsetWithin(parentElem);
@@ -217,10 +217,10 @@
 			return;
 		}
 		var parentElem =  getCaretParentElementWithin(this);
+		if(typeof(parentElem)=="undefined" || $(parentElem).parents(".title,table").size()>0)
+			return;
 		var offset = getCaretOffsetWithin(parentElem);
 		var mdItem = MarkDownItem.newInstance(parentElem);
-		if($(mdItem.rootElem).hasClass("title"))
-			return;
 		mdItem.checkMarkDown(offset);
     });
 	
@@ -235,7 +235,7 @@
 				if(flagMenuOpen){
 					e.preventDefault();
 					CommandMenu.action();
-				} else if(parentElem.tagName==="CODE"){
+				} else if($(parentElem).parents("code,table").size()>0){
 				} else {
 					flagEdit = true;
 					if(parentElem.tagName == "LI"){
